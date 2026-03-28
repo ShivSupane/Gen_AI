@@ -1,81 +1,127 @@
 """
-CLI entry point — run the RAG chatbot interactively.
-
-Usage:
-    python main.py                  # interactive chat (rebuilds index)
-    python main.py --load-index     # load saved index, skip re-indexing
-    python main.py --save-index     # rebuild and save index for later
+RAG (Retrieval-Augmented Generation) Pipeline
+Uses FAISS for vector search + OpenAI for embeddings and generation
 """
 
-import argparse
+import os
+from pathlib import Path
+from dotenv import load_dotenv
 import logging
-from src.rag import RAGPipeline
+
+from langchain_community.document_loaders import TextLoader, DirectoryLoader, PyPDFLoader, UnstructuredWordDocumentLoader
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_openai import OpenAIEmbeddings, ChatOpenAI
+from langchain_community.vectorstores import FAISS
+from langchain.chains import RetrievalQA
+from langchain.prompts import PromptTemplate
+
+load_dotenv()
+
+# ── Prompt Template ──────────────────────────────────────────────────────────
+RAG_PROMPT = PromptTemplate(
+    input_variables=["context", "question"],
+    template="""You are a helpful assistant. Use the context below to answer the question.
+If the answer is not in the context, say "I don't have enough information to answer that."
+
+Context:
+{context}
+
+Question: {question}
+
+Answer:""",
+)
 
 
-def parse_args():
-    p = argparse.ArgumentParser(description="RAG LLM — chat with your documents")
-    p.add_argument("--docs-dir", default="docs", help="Folder with documents")
-    p.add_argument("--model", default="gpt-4o-mini", help="OpenAI chat model")
-    p.add_argument("--load-index", action="store_true", help="Load saved FAISS index")
-    p.add_argument("--save-index", action="store_true", help="Save FAISS index after building")
-    p.add_argument("--index-path", default="faiss_index", help="Path for saved index")
-    p.add_argument("--chunk-size", type=int, default=500, help="Chunk size for splitting documents")
-    p.add_argument("--chunk-overlap", type=int, default=50, help="Overlap size between chunks")
-    p.add_argument("--retriever-k", type=int, default=4, help="Number of chunks to retrieve")
-    return p.parse_args()
+# ── RAG Pipeline ─────────────────────────────────────────────────────────────
+class RAGPipeline:
+    def __init__(self, docs_dir: str = "docs", model: str = "gpt-4o-mini",
+                 chunk_size: int = 500, chunk_overlap: int = 50, retriever_k: int = 4):
+        self.docs_dir = Path(docs_dir)
+        self.model = model
+        self.chunk_size = chunk_size
+        self.chunk_overlap = chunk_overlap
+        self.retriever_k = retriever_k
 
+        self.vectorstore = None
+        self.chain = None
 
-def main():
-    args = parse_args()
+        self.embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
+        self.llm = ChatOpenAI(model=model, temperature=0, streaming=True)
 
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+    def _load_documents(self):
+        """Load documents from folder, supporting multiple formats."""
+        logging.info(f"📂 Loading documents from '{self.docs_dir}/'...")
 
-    print("=" * 55)
-    print("  🤖  RAG LLM — Chat With Your Documents")
-    print("=" * 55)
+        loaders = [
+            DirectoryLoader(str(self.docs_dir), glob="**/*.txt", loader_cls=TextLoader, loader_kwargs={"encoding": "utf-8"}),
+            DirectoryLoader(str(self.docs_dir), glob="**/*.pdf", loader_cls=PyPDFLoader),
+            DirectoryLoader(str(self.docs_dir), glob="**/*.docx", loader_cls=UnstructuredWordDocumentLoader),
+        ]
 
-    rag = RAGPipeline(
-        docs_dir=args.docs_dir,
-        model=args.model,
-        chunk_size=args.chunk_size,
-        chunk_overlap=args.chunk_overlap,
-        retriever_k=args.retriever_k,
-    )
+        documents = []
+        for loader in loaders:
+            try:
+                documents.extend(loader.load())
+            except Exception as e:
+                logging.warning(f"Skipping loader {loader}: {e}")
 
-    try:
-        if args.load_index:
-            rag.load_index(args.index_path)
-        else:
-            rag.load_and_index()
-            if args.save_index:
-                rag.save_index(args.index_path)
-    except Exception as e:
-        logging.error(f"Failed to initialize RAG pipeline: {e}")
-        return
+        if not documents:
+            raise ValueError(f"No supported documents found in '{self.docs_dir}/'")
 
-    print("Type your question below (or 'quit' to exit).\n")
+        logging.info(f"✅ Loaded {len(documents)} document(s)")
+        return documents
 
-    while True:
-        try:
-            question = input("You: ").strip()
-        except (EOFError, KeyboardInterrupt):
-            print("\n👋 Bye!")
-            break
+    def load_and_index(self):
+        """Load documents and build FAISS index."""
+        documents = self._load_documents()
 
-        if not question:
-            continue
-        if question.lower() in {"quit", "exit", "q"}:
-            print("👋 Bye!")
-            break
+        # Split into chunks
+        splitter = RecursiveCharacterTextSplitter(
+            chunk_size=self.chunk_size,
+            chunk_overlap=self.chunk_overlap,
+        )
+        chunks = splitter.split_documents(documents)
+        logging.info(f"✂️  Split into {len(chunks)} chunks")
 
-        print("🤔 Thinking...")
-        try:
-            answer = rag.ask(question)
-            print(f"\n🤖 {answer}\n")
-        except Exception as e:
-            logging.error(f"Error while answering: {e}")
-        print("-" * 45)
+        # Build vector store
+        logging.info("🔢 Building FAISS index...")
+        self.vectorstore = FAISS.from_documents(chunks, self.embeddings)
+        logging.info("✅ Index ready!\n")
 
+        # Build retrieval chain
+        retriever = self.vectorstore.as_retriever(
+            search_type="similarity",
+            search_kwargs={"k": self.retriever_k},
+        )
+        self.chain = RetrievalQA.from_chain_type(
+            llm=self.llm,
+            chain_type="stuff",
+            retriever=retriever,
+            chain_type_kwargs={"prompt": RAG_PROMPT},
+        )
 
-if __name__ == "__main__":
-    main()
+    def ask(self, question: str) -> str:
+        """Ask a question against the indexed documents."""
+        if self.chain is None:
+            raise RuntimeError("Call load_and_index() first.")
+        result = self.chain.invoke({"query": question})
+        return result["result"]
+
+    def save_index(self, path: str = "faiss_index"):
+        """Save the FAISS index to disk."""
+        self.vectorstore.save_local(path)
+        logging.info(f"💾 Index saved to '{path}/'")
+
+    def load_index(self, path: str = "faiss_index"):
+        """Load a previously saved FAISS index."""
+        self.vectorstore = FAISS.load_local(
+            path, self.embeddings, allow_dangerous_deserialization=True
+        )
+        retriever = self.vectorstore.as_retriever(search_kwargs={"k": self.retriever_k})
+        self.chain = RetrievalQA.from_chain_type(
+            llm=self.llm,
+            chain_type="stuff",
+            retriever=retriever,
+            chain_type_kwargs={"prompt": RAG_PROMPT},
+        )
+        logging.info(f"✅ Index loaded from '{path}/'")
