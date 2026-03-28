@@ -1,7 +1,23 @@
+# Core LLM + embeddings
 openai>=1.30.0
 langchain>=0.2.0
 langchain-openai>=0.1.0
 langchain-community>=0.2.0
+
+# Vector store
 faiss-cpu>=1.8.0
+
+# Environment variables
 python-dotenv>=1.0.0
+
+# Tokenization
 tiktoken>=0.7.0
+
+# Document parsing
+PyPDF2>=3.0.1              # for PDF support
+unstructured>=0.15.0       # for DOCX/Word support
+docx2txt>=0.8              # optional helper for .docx parsing
+
+# Utilities
+colorama>=0.4.6            # optional: colored CLI output
+rich>=13.7.0               # optional: nicer logging/printing
