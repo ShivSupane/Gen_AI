@@ -1,112 +1,175 @@
-# 🤖 RAG LLM — Chat With Your Documents
+# 🤖 Shiv GenAI RAG — Chat With Your Documents
 
-A minimal but production-ready **Retrieval-Augmented Generation (RAG)** pipeline that lets you chat with any collection of text documents using OpenAI's LLMs.
+A powerful **Retrieval-Augmented Generation (RAG)** application that allows users to upload documents and interact with them using **LLMs (Large Language Models)**.
 
-## How It Works
-
-```
-Your .txt files  →  Chunked  →  Embedded  →  FAISS Index
-                                                    ↓
-User Question  →  Embedded  →  Top-k Retrieval  →  LLM  →  Answer
-```
-
-1. **Load** — reads all `.txt` files from the `docs/` folder  
-2. **Chunk** — splits documents into overlapping 500-token chunks  
-3. **Embed** — converts chunks to vectors using `text-embedding-3-small`  
-4. **Index** — stores vectors in a local FAISS index  
-5. **Query** — on each question, retrieves the top-4 relevant chunks and passes them to `gpt-4o-mini` for a grounded answer  
+Built using **Streamlit + FAISS + HuggingFace Embeddings + Groq API**, this app delivers fast, intelligent, and context-aware responses.
 
 ---
 
-## Quickstart
+## 🚀 Features
 
-### 1. Clone & install
+* 📂 Upload your own `.txt` documents
+* 🔍 Intelligent document search using **FAISS vector database**
+* 🧠 Context-aware answers using **RAG pipeline**
+* ⚡ Ultra-fast responses powered by **Groq LLMs**
+* 💬 Chat-style interface (like ChatGPT)
+* 🌐 Ready for deployment (Streamlit Cloud / Hugging Face)
+
+---
+
+## 🏗️ Tech Stack
+
+* **Frontend/UI**: Streamlit
+* **LLM Provider**: Groq (LLaMA 3.1 / Mixtral)
+* **Embeddings**: HuggingFace (`all-MiniLM-L6-v2`)
+* **Vector DB**: FAISS
+* **Framework**: LangChain
+
+---
+
+## 🧠 How It Works (RAG Pipeline)
+
+1. 📄 Upload documents
+2. ✂️ Split text into chunks
+3. 🔢 Convert chunks into embeddings
+4. 📦 Store embeddings in FAISS
+5. 🔎 Retrieve relevant chunks based on query
+6. 🤖 Send context + question to LLM
+7. 💡 Generate accurate answer
+
+---
+
+## 📁 Project Structure
+
+```
+rag-based-llm-application/
+│
+├── app.py               # Streamlit UI
+├── main.py              # CLI version
+├── requirements.txt
+├── README.md
+│
+├── docs/                # Uploaded documents
+│
+└── src/
+    └── rag.py           # RAG pipeline logic
+```
+
+---
+
+## ⚙️ Installation (Local Setup)
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/rag-llm.git
-cd rag-llm
+# Clone the repository
+git clone https://github.com/your-username/rag-based-llm-application.git
+
+cd rag-based-llm-application
+
+# Install dependencies
 pip install -r requirements.txt
 ```
 
-### 2. Add your API key
+---
+
+## 🔑 Set API Key
+
+### Option 1: Environment Variable
 
 ```bash
-cp .env.example .env
-# Edit .env and paste your OpenAI API key
+set GROQ_API_KEY=your_api_key_here
 ```
 
-### 3. Add your documents
+### Option 2: Streamlit Secrets (Recommended for deployment)
 
-Drop any `.txt` files into the `docs/` folder. A sample file is already included.
+```
+GROQ_API_KEY = "your_api_key_here"
+```
 
-### 4. Run
+---
+
+## ▶️ Run the App
 
 ```bash
-python main.py
+streamlit run app.py
 ```
 
 ---
 
-## Usage
+## 🌐 Deployment
 
-```bash
-# Interactive chat (rebuilds index each run)
-python main.py
+### 🚀 Streamlit Cloud
 
-# Use a different docs folder or model
-python main.py --docs-dir my_notes --model gpt-4o
-
-# Build once, save the index, load it later (faster)
-python main.py --save-index
-python main.py --load-index
-```
-
-| Flag | Default | Description |
-|---|---|---|
-| `--docs-dir` | `docs` | Folder containing `.txt` files |
-| `--model` | `gpt-4o-mini` | OpenAI chat model |
-| `--save-index` | — | Save FAISS index after building |
-| `--load-index` | — | Skip rebuilding, load saved index |
-| `--index-path` | `faiss_index` | Path for saved index |
+1. Push code to GitHub
+2. Connect repo to Streamlit Cloud
+3. Add `GROQ_API_KEY` in Secrets
+4. Deploy
 
 ---
 
-## Project Structure
+### 🤗 Hugging Face Spaces
 
-```
-rag-llm/
-├── main.py              # CLI entry point
-├── src/
-│   └── rag.py           # RAGPipeline class
-├── docs/
-│   └── ai_overview.txt  # Sample document
-├── requirements.txt
-├── .env.example
-└── .gitignore
-```
+1. Create new Space (Streamlit)
+2. Upload project files
+3. Add API key in **Settings → Secrets**
+4. Run automatically
 
 ---
 
-## Tech Stack
+## 📸 Screenshots
 
-| Component | Library |
-|---|---|
-| LLM | OpenAI `gpt-4o-mini` |
-| Embeddings | OpenAI `text-embedding-3-small` |
-| Vector Store | FAISS (local, no server needed) |
-| Orchestration | LangChain |
+> Add screenshots of your UI here for better presentation
 
 ---
 
-## Extending the Project
+## 🎯 Use Cases
 
-- **More file types** — add `PyPDFLoader` or `UnstructuredMarkdownLoader`  
-- **Better UI** — wrap with Streamlit or FastAPI  
-- **Persistent store** — swap FAISS for Chroma or Pinecone  
-- **Reranking** — add a cross-encoder to improve retrieval quality  
+* 📚 Study assistant
+* 📄 Resume analyzer
+* 🏢 Document QA system
+* 📊 Knowledge base chatbot
+* 🧑‍💻 Developer documentation assistant
 
 ---
 
-## License
+## ⚠️ Limitations
 
-MIT
+* Supports `.txt` files only (can be extended)
+* Requires internet for LLM API
+* Performance depends on document size
+
+---
+
+## 🔮 Future Improvements
+
+* 📄 Support PDF, DOCX
+* 🧠 Memory-based conversations
+* 🌍 Multi-language support
+* 📊 Analytics dashboard
+* 🧑‍🤝‍🧑 Multi-user system
+
+---
+
+## 👨‍💻 Author
+
+**Shiv Supane**
+🚀 Passionate about AI, Cloud & Scalable Systems
+
+---
+
+## ⭐ Show Your Support
+
+If you like this project:
+
+* ⭐ Star the repo
+* 🍴 Fork it
+* 📢 Share it
+
+---
+
+## 📜 License
+
+This project is open-source and available under the **MIT License**.
+
+---
+
+> 💡 “Build AI that doesn’t just generate — but understands.”
